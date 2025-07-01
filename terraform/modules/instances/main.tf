@@ -53,6 +53,16 @@ resource "aws_instance" "public" {
   subnet_id                   = element(var.public_subnet_ids, count.index % length(var.public_subnet_ids))
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.public_sg.id]
+  key_name                    = var.key_name
+
+  user_data = <<-EOF
+              #!/bin/bash
+              mkdir -p /home/ubuntu/.ssh
+              echo "${file(var.public_key_path)}" > /home/ubuntu/.ssh/authorized_keys
+              chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+              chmod 700 /home/ubuntu/.ssh
+              chmod 600 /home/ubuntu/.ssh/authorized_keys
+              EOF
 
   tags = {
     Name = "public-oleg-instance"
@@ -61,12 +71,13 @@ resource "aws_instance" "public" {
 
 # Private Instances (3)
 resource "aws_instance" "private" {
-  count                  = var.private_instance_count
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = element(var.private_subnet_ids, count.index % length(var.private_subnet_ids))
+  count                       = var.private_instance_count
+  ami                         = var.ami_id
+  instance_type               = var.instance_type
+  subnet_id                   = element(var.private_subnet_ids, count.index % length(var.private_subnet_ids))
   associate_public_ip_address = false
-  vpc_security_group_ids = [aws_security_group.private_sg.id]
+  vpc_security_group_ids      = [aws_security_group.private_sg.id]
+  key_name                    = var.key_name
 
   tags = {
     Name = "private-oleg-instance-${count.index + 1}"
