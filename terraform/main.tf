@@ -24,6 +24,8 @@ module "instances" {
   source = "./modules/instances"
 
   ami_id                  = var.ami_id
+  key_name                = var.key_name
+  public_key_path         = var.public_key_path
   instance_type           = var.instance_type
   public_instance_count   = var.public_instance_count
   private_instance_count  = var.private_instance_count

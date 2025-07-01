@@ -9,3 +9,11 @@ variable "private_subnet_ids" {
   type = list(string)
 }
 variable "vpc_id" {}
+
+variable "key_name" {
+  type = string
+}
+
+variable "public_key_path" {
+  type = string
+}

@@ -1,3 +1,8 @@
+resource "aws_key_pair" "default" {
+  key_name   = var.key_name
+  public_key = file(var.public_key_path)
+}
+
 # Security Group for Public Instance
 resource "aws_security_group" "public_sg" {
   name        = "oleg-public-sg"
@@ -45,12 +50,12 @@ resource "aws_instance" "public" {
   count                       = var.public_instance_count
   ami                         = var.ami_id
   instance_type               = var.instance_type
-  subnet_id                   = element([aws_subnet.public_1.id, aws_subnet.public_2.id], count.index % 2)
+  subnet_id                   = element(var.public_subnet_ids, count.index % length(var.public_subnet_ids))
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.public_sg.id]
 
   tags = {
-    Name = "public-instance-${count.index + 1}"
+    Name = "public-oleg-instance"
   }
 }
 
@@ -59,11 +64,11 @@ resource "aws_instance" "private" {
   count                  = var.private_instance_count
   ami                    = var.ami_id
   instance_type          = var.instance_type
-  subnet_id              = element([aws_subnet.private_1.id, aws_subnet.private_2.id], count.index % 2)
+  subnet_id              = element(var.private_subnet_ids, count.index % length(var.private_subnet_ids))
   associate_public_ip_address = false
   vpc_security_group_ids = [aws_security_group.private_sg.id]
 
   tags = {
-    Name = "private-instance-${count.index + 1}"
+    Name = "private-oleg-instance-${count.index + 1}"
   }
 }
