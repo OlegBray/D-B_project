@@ -9,3 +9,4 @@ output "public_instance_ids" {
 output "private_instance_ids" {
   value = module.instances.private_instance_ids
 }
+
