@@ -45,7 +45,7 @@ resource "aws_security_group" "private_sg" {
   }
 }
 
-# Public Instance (Bastion)
+# Public Instance (1)
 resource "aws_instance" "public" {
   count                       = var.public_instance_count
   ami                         = var.ami_id
@@ -55,22 +55,21 @@ resource "aws_instance" "public" {
   vpc_security_group_ids      = [aws_security_group.public_sg.id]
   key_name                    = var.key_name
 
-  user_data = <<EOF
-#!/bin/bash
-mkdir -p /home/ubuntu/.ssh
-cat << 'KEY' > /home/ubuntu/.ssh/id_rsa
-${tls_private_key.bastion_key.private_key_pem}
-KEY
-chmod 600 /home/ubuntu/.ssh/id_rsa
-chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa
-EOF
+  user_data = <<-EOF
+              #!/bin/bash
+              mkdir -p /home/ubuntu/.ssh
+              echo "${file(var.public_key_path)}" > /home/ubuntu/.ssh/authorized_keys
+              chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+              chmod 700 /home/ubuntu/.ssh
+              chmod 600 /home/ubuntu/.ssh/authorized_keys
+              EOF
 
   tags = {
     Name = "public-oleg-instance"
   }
 }
 
-# Private Instances
+# Private Instances (3)
 resource "aws_instance" "private" {
   count                       = var.private_instance_count
   ami                         = var.ami_id
@@ -79,6 +78,15 @@ resource "aws_instance" "private" {
   associate_public_ip_address = false
   vpc_security_group_ids      = [aws_security_group.private_sg.id]
   key_name                    = var.key_name
+
+  user_data = <<-EOF
+              #!/bin/bash
+              mkdir -p /home/ubuntu/.ssh
+              echo "${file(var.public_key_path)}" > /home/ubuntu/.ssh/authorized_keys
+              chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+              chmod 700 /home/ubuntu/.ssh
+              chmod 600 /home/ubuntu/.ssh/authorized_keys
+              EOF
 
   tags = {
     Name = "private-oleg-instance-${count.index + 1}"
