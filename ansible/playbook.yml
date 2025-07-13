@@ -1,0 +1,5 @@
+- name: Run my custom role on EC2
+  hosts: web
+  become: true
+  roles:
+    - aws-ec2-init

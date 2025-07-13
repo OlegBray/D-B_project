@@ -1,0 +1,3 @@
+---
+# vars file for cluster
+rke2_token: "rke2securetoken"

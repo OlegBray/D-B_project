@@ -1,0 +1,6 @@
+---
+- name: Initializing role
+  hosts: cluster
+  become: yes
+  roles:
+    - cluster

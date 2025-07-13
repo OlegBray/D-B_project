@@ -1,0 +1,65 @@
+---
+# destroy-cluster.yml
+# Teardown and uninstall RKE2 on master + workers
+
+- name: Teardown RKE2 cluster
+  hosts: cluster
+  become: yes
+  any_errors_fatal: true
+
+  vars:
+    rke2_data_dirs:
+      - /etc/rancher/rke2
+      - /var/lib/rancher/rke2
+      - /var/lib/kubelet
+      - /run/k3s
+      - /tmp/rke2
+
+  tasks:
+    - name: Stop and disable RKE2 service
+      systemd:
+        name: "{{ 'rke2-server' if inventory_hostname in groups['master'] else 'rke2-agent' }}"
+        state: stopped
+        enabled: no
+
+    - name: Kill all RKE2 processes
+      command: /usr/local/bin/rke2-killall.sh
+      ignore_errors: true
+
+    - name: Uninstall RKE2 files
+      command: /usr/local/bin/rke2-uninstall.sh
+      ignore_errors: true
+
+    - name: Remove RKE2 data directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ rke2_data_dirs }}"
+
+    - name: Remove RKE2 binaries
+      file:
+        path: /usr/local/bin/rke2*
+        state: absent
+      ignore_errors: true
+
+    - name: Remove CNI network configuration
+      file:
+        path: /etc/cni/net.d
+        state: absent
+      ignore_errors: true
+
+    - name: Clean up kube config for ubuntu user on master
+      when: inventory_hostname in groups['master']
+      file:
+        path: /home/ubuntu/.kube
+        state: absent
+      become: false
+
+- name: Cleanup local kubeconfig on bastion
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Remove local KUBECONFIG file
+      file:
+        path: ~/.kube/config
+        state: absent

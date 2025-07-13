@@ -1,0 +1,7 @@
+token: "{{ rke2_token }}"
+tls-san:
+  - "{{ ansible_host }}"
+node-name: {{ inventory_hostname }}
+node-taint:
+  - "CriticalAddonsOnly=true:NoExecute"
+cni: flannel

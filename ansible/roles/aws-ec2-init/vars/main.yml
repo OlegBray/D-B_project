@@ -1,0 +1,25 @@
+#SPDX-License-Identifier: MIT-0
+# vars file for aws-ec2-init
+---
+# System
+ansible_user_name: ubuntu
+
+# AWS CLI
+aws_cli_zip_url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+aws_cli_zip_dest: /tmp/awscliv2.zip
+aws_cli_extract_path: /tmp
+aws_cli_install_dir: /tmp/aws
+
+# Kubectl
+kubectl_version: v1.30.1
+kubectl_download_url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+kubectl_dest: /usr/local/bin/kubectl
+
+# Helm
+helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+helm_install_script_path: /tmp/get_helm.sh
+
+# Jenkins
+jenkins_repo_key_url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
+jenkins_repo: deb https://pkg.jenkins.io/debian-stable binary/
+jenkins_java_package: openjdk-17-jdk

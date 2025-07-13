@@ -14,6 +14,6 @@ variable "key_name" {
   type = string
 }
 
-variable "public_key_path" {
+variable "vpc_cidr" {
   type = string
 }

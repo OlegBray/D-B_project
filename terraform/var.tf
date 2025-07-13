@@ -40,11 +40,6 @@ variable "private_instance_count" {
 variable "key_name" {
   description = "Name of the SSH key"
   type        = string
-  default     = "oleg"
+  default     = "oleg-key"
 }
 
-variable "public_key_path" {
-  description   = "Path to the public key file"
-  type          = string
-  default       = "/home/oleg/.ssh/id_rsa.pub"
-}

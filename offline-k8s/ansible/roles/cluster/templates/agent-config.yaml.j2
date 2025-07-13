@@ -1,0 +1,4 @@
+server: https://{{ hostvars[groups['master'][0]].ansible_host }}:9345
+token: "{{ rke2_token }}"
+node-name: {{ inventory_hostname }}
+cni: flannel

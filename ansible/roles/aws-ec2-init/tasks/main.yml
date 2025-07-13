@@ -1,0 +1,126 @@
+---
+- name: Update APT package index
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install basic packages
+  apt:
+    name:
+      - curl
+      - unzip
+      - gnupg
+      - software-properties-common
+    state: present
+
+# -------------------------
+# AWS CLI
+# -------------------------
+- name: Check if AWS CLI is already installed
+  command: aws --version
+  register: aws_cli_check
+  ignore_errors: true
+
+- name: Download AWS CLI v2 installer
+  get_url:
+    url: "{{ aws_cli_zip_url }}"
+    dest: "{{ aws_cli_zip_dest }}"
+  when: aws_cli_check.rc != 0
+
+- name: Unzip AWS CLI installer
+  unarchive:
+    src: "{{ aws_cli_zip_dest }}"
+    dest: "{{ aws_cli_extract_path }}"
+    remote_src: yes
+  when: aws_cli_check.rc != 0
+
+- name: Install AWS CLI
+  command: ./install --update
+  args:
+    chdir: "{{ aws_cli_install_dir }}"
+  when: aws_cli_check.rc != 0
+
+# -------------------------
+# Ansible
+# -------------------------
+- name: Check if Ansible is installed
+  command: ansible --version
+  register: ansible_check
+  ignore_errors: true
+
+- name: Install Ansible
+  apt:
+    name: ansible
+    state: present
+  when: ansible_check.rc != 0
+
+# -------------------------
+# Docker
+# -------------------------
+- name: Check if Docker is installed
+  command: docker --version
+  register: docker_check
+  ignore_errors: true
+
+- name: Install Docker
+  apt:
+    name:
+      - docker.io
+    state: present
+  when: docker_check.rc != 0
+
+- name: Enable and start Docker
+  systemd:
+    name: docker
+    enabled: true
+    state: started
+  when: docker_check.rc != 0
+
+- name: Add {{ ansible_user_name }} to docker group
+  user:
+    name: "{{ ansible_user_name }}"
+    groups: docker
+    append: yes
+  when: docker_check.rc != 0
+
+# -------------------------
+# Kubernetes (kubectl)
+# -------------------------
+- name: Check if kubectl is installed
+  command: kubectl version --client
+  register: kubectl_check
+  ignore_errors: true
+
+- name: Download kubectl
+  get_url:
+    url: "{{ kubectl_download_url }}"
+    dest: "{{ kubectl_dest }}"
+    mode: '0755'
+  when: kubectl_check.rc != 0
+
+# -------------------------
+# Helm
+# -------------------------
+- name: Check if Helm is installed
+  command: helm version --short
+  register: helm_check
+  ignore_errors: true
+
+- name: Download Helm install script
+  get_url:
+    url: "{{ helm_install_script_url }}"
+    dest: "{{ helm_install_script_path }}"
+    mode: '0755'
+  when: helm_check.rc != 0
+
+- name: Install Helm
+  command: "{{ helm_install_script_path }}"
+  when: helm_check.rc != 0
+
+# -------------------------
+# Jenkins
+# -------------------------
+- name: Check if Jenkins is already installed
+  stat:
+    path: /etc/init.d/jenkins
+  register: j

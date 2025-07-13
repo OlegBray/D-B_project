@@ -8,7 +8,7 @@ resource "aws_vpc" "oleg_vpc" {
   }
 }
 
-# Public Subnets
+# Public Subnet
 resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.oleg_vpc.id
   cidr_block              = var.public_subnets[0]
@@ -20,8 +20,7 @@ resource "aws_subnet" "public_1" {
   }
 }
 
-
-# Private Subnets
+# Private Subnet
 resource "aws_subnet" "private_1" {
   vpc_id            = aws_vpc.oleg_vpc.id
   cidr_block        = var.private_subnets[0]
@@ -32,7 +31,6 @@ resource "aws_subnet" "private_1" {
   }
 }
 
-
 # Internet Gateway
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.oleg_vpc.id
@@ -42,7 +40,7 @@ resource "aws_internet_gateway" "gw" {
   }
 }
 
-# Public Route Table
+# Public Route Table with route to Internet Gateway
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.oleg_vpc.id
 
@@ -61,3 +59,16 @@ resource "aws_route_table_association" "public_1_assoc" {
   route_table_id = aws_route_table.public_rt.id
 }
 
+# --- NEW: Private Route Table (no internet access) ---
+resource "aws_route_table" "private_rt" {
+  vpc_id = aws_vpc.oleg_vpc.id
+
+  tags = {
+    Name = "oleg-private-rt"
+  }
+}
+
+resource "aws_route_table_association" "private_1_assoc" {
+  subnet_id      = aws_subnet.private_1.id
+  route_table_id = aws_route_table.private_rt.id
+}

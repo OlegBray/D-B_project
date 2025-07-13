@@ -1,0 +1,80 @@
+# === STEP 1: Disable ubuntu.sources ===
+- name: Comment out ubuntu.sources to prevent apt from reaching the internet
+  become: true
+  shell: sudo sed -i 's|^|#|' /etc/apt/sources.list.d/ubuntu.sources || true
+
+# === STEP 2: Create Docker directory ===
+- name: Create Docker directory for .deb packages
+  become: true
+  file:
+    path: /tmp/docker
+    state: directory
+    mode: '0755'
+
+# === STEP 3: Copy Docker .deb packages to nodes ===
+- name: Copy Docker .deb packages to nodes (skip if exists)
+  become: true
+  copy:
+    src: "{{ playbook_dir }}/../docker/"
+    dest: /tmp/docker/
+    mode: '0644'
+    force: no
+
+# === STEP 4: Install Docker from .deb (only if not installed) ===
+- name: Check if Docker is already installed
+  command: which docker
+  register: docker_check
+  ignore_errors: true
+
+- name: Install Docker .deb packages
+  become: true
+  shell: |
+    set -e
+    dpkg -i /tmp/docker/*.deb || apt-get install -f -y
+  when: docker_check.rc != 0
+
+# === STEP 5: Enable and start Docker service ===
+- name: Enable and start Docker
+  become: true
+  systemd:
+    name: docker
+    enabled: true
+    state: started
+
+# === STEP 6: Add ubuntu user to docker group ===
+- name: Add ubuntu user to docker group
+  become: true
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+# === STEP 7: Reload daemon and restart Docker ===
+- name: Reload daemon and restart Docker
+  become: true
+  systemd:
+    name: docker
+    daemon_reload: true
+    state: restarted
+
+# === STEP 8: Run Local Registry on Each Node ===
+- name: Copy registry image tarball to nodes
+  become: yes
+  copy:
+    src: "{{ playbook_dir }}/../images/registry.tar"
+    dest: /tmp/registry.tar
+
+- name: Load registry image from tarball
+  become: yes
+  command: docker load -i /tmp/registry.tar
+
+- name: Run Docker registry container
+  become: yes
+  docker_container:
+    name: local-registry
+    image: registry:2
+    state: started
+    restart_policy: always
+    published_ports:
+      - "5000:5000"
+
