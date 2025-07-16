@@ -1,7 +1,7 @@
 # === STEP 1: Disable ubuntu.sources ===
 - name: Comment out ubuntu.sources to prevent apt from reaching the internet
   become: true
-  shell: sudo sed -i 's|^|#|' /etc/apt/sources.list.d/ubuntu.sources || true
+  shell: sed -i 's|^|#|' /etc/apt/sources.list.d/ubuntu.sources || true
 
 # === STEP 2: Create Docker directory ===
 - name: Create Docker directory for .deb packages
@@ -11,7 +11,7 @@
     state: directory
     mode: '0755'
 
-# === STEP 3: Copy Docker .deb packages to nodes ===
+# === STEP 3: Copy Docker .deb packages to nodes (skip if exists) ===
 - name: Copy Docker .deb packages to nodes (skip if exists)
   become: true
   copy:
@@ -24,7 +24,7 @@
 - name: Check if Docker is already installed
   command: which docker
   register: docker_check
-  ignore_errors: true
+  failed_when: false
 
 - name: Install Docker .deb packages
   become: true
@@ -59,17 +59,17 @@
 
 # === STEP 8: Run Local Registry on Each Node ===
 - name: Copy registry image tarball to nodes
-  become: yes
+  become: true
   copy:
     src: "{{ playbook_dir }}/../images/registry.tar"
     dest: /tmp/registry.tar
 
 - name: Load registry image from tarball
-  become: yes
+  become: true
   command: docker load -i /tmp/registry.tar
 
 - name: Run Docker registry container
-  become: yes
+  become: true
   docker_container:
     name: local-registry
     image: registry:2
@@ -78,3 +78,201 @@
     published_ports:
       - "5000:5000"
 
+# === STEP 9: Ensure RKE2 directories exist ===
+- name: Ensure /etc/rancher/rke2 exists
+  become: true
+  file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: '0755'
+
+- name: Create RKE2 installation directory
+  become: true
+  file:
+    path: /tmp/rke2
+    state: directory
+    mode: '0755'
+
+# === STEP 10: Configure registries.yaml BEFORE RKE2 installation ===
+- name: Configure registries.yaml to use local registry
+  become: true
+  copy:
+    dest: /etc/rancher/rke2/registries.yaml
+    content: |
+      mirrors:
+        docker.io:
+          endpoint:
+            - "http://localhost:5000"
+        registry.k8s.io:
+          endpoint:
+            - "http://localhost:5000"
+        quay.io:
+          endpoint:
+            - "http://localhost:5000"
+
+# === STEP 11: Copy RKE2 installation files ===
+- name: Copy RKE2 installation files
+  become: true
+  copy:
+    src: "{{ playbook_dir }}/../rke2/"
+    dest: /tmp/rke2/
+    mode: '0755'
+
+# === STEP 12: Install RKE2 ===
+- name: Run RKE2 install script
+  become: true
+  shell: |
+    set -e
+    chmod +x /tmp/rke2/install.sh
+    INSTALL_RKE2_ARTIFACT_PATH=/tmp/rke2 /tmp/rke2/install.sh
+  args:
+    chdir: /tmp/rke2
+
+# === STEP 13: Configure RKE2 Server (Master) ===
+- name: Create RKE2 server config
+  become: true
+  template:
+    src: server-config.yaml.j2
+    dest: /etc/rancher/rke2/config.yaml
+    mode: '0644'
+  when: inventory_hostname in groups['master']
+
+# === STEP 14: Start RKE2 Server and Get Token ===
+- name: Enable and start RKE2 server
+  become: true
+  systemd:
+    name: rke2-server
+    enabled: true
+    state: started
+  when: inventory_hostname in groups['master']
+
+- name: Wait for RKE2 server to be ready
+  become: true
+  wait_for:
+    path: /var/lib/rancher/rke2/server/node-token
+    timeout: 300
+  when: inventory_hostname in groups['master']
+
+- name: Get RKE2 server token
+  become: true
+  slurp:
+    src: /var/lib/rancher/rke2/server/node-token
+  register: rke2_token_result
+  when: inventory_hostname in groups['master']
+
+- name: Set RKE2 token fact on master
+  set_fact:
+    rke2_server_token: "{{ rke2_token_result.content | b64decode | trim }}"
+  when: inventory_hostname in groups['master']
+
+- name: Distribute token to all nodes
+  set_fact:
+    rke2_server_token: "{{ hostvars[groups['master'][0]]['rke2_server_token'] }}"
+  when: inventory_hostname in groups['workers']
+
+# === STEP 15: Configure RKE2 Agent (Workers) ===
+- name: Create RKE2 agent config
+  become: true
+  template:
+    src: agent-config.yaml.j2
+    dest: /etc/rancher/rke2/config.yaml
+    mode: '0644'
+  when: inventory_hostname in groups['workers']
+
+- name: Enable and start RKE2 agent
+  become: true
+  systemd:
+    name: rke2-agent
+    enabled: true
+    state: started
+  when: inventory_hostname in groups['workers']
+
+# === STEP 16: Ensure kubectl is symlinked globally ===
+- name: Symlink kubectl to /usr/local/bin if not already linked
+  become: true
+  file:
+    src: /var/lib/rancher/rke2/bin/kubectl
+    dest: /usr/local/bin/kubectl
+    state: link
+    force: yes
+  when: inventory_hostname in groups['master']
+
+# === STEP 17: Ensure KUBECONFIG is set for ubuntu user ===
+- name: Add KUBECONFIG to .bashrc for ubuntu user
+  become: true
+  lineinfile:
+    path: /home/ubuntu/.bashrc
+    line: 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml'
+    create: yes
+    state: present
+  when: inventory_hostname in groups['master']
+
+# === STEP 18: Prepare kubeconfig for ubuntu user ===
+- name: Create .kube directory for ubuntu user
+  become: true
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    mode: '0755'
+    owner: ubuntu
+    group: ubuntu
+  when: inventory_hostname in groups['master']
+
+- name: Copy kubeconfig file to ubuntu user
+  become: true
+  copy:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+  when: inventory_hostname in groups['master']
+
+- name: Replace localhost with master private IP in kubeconfig
+  become: true
+  replace:
+    path: /home/ubuntu/.kube/config
+    regexp: '127.0.0.1'
+    replace: '{{ ansible_host }}'
+  when: inventory_hostname in groups['master']
+
+# === STEP 19: Copy and Execute Image-to-Registry Script (Master Only) ===
+- name: Copy image-to-registry.sh script to master node
+  become: true
+  copy:
+    src: "{{ playbook_dir }}/../image-to-registry.sh"
+    dest: /home/ubuntu/image-to-registry.sh
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+  when: inventory_hostname in groups['master']
+
+- name: Execute image-to-registry.sh script on master node
+  become: true
+  shell: /home/ubuntu/image-to-registry.sh
+  become_user: ubuntu
+  when: inventory_hostname in groups['master']
+  register: script_output
+
+- name: Display script execution output
+  debug:
+    var: script_output.stdout_lines
+  when: inventory_hostname in groups['master'] and script_output is defined
+
+# === STEP 20: Fetch kubeconfig to local machine ===
+- name: Create .kube directory on local machine
+  local_action:
+    module: file
+    path: ~/.kube
+    state: directory
+    mode: '0755'
+  run_once: true
+  when: inventory_hostname in groups['master']
+
+- name: Fetch kubeconfig from master to local machine
+  fetch:
+    src: /home/ubuntu/.kube/config
+    dest: ~/.kube/config
+    flat: yes
+  when: inventory_hostname in groups['master']

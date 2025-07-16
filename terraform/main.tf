@@ -33,3 +33,9 @@ module "instances" {
   vpc_id                  = module.vpc.vpc_id
   vpc_cidr                = var.vpc_cidr
 }
+
+module "ansible-inventory-creation" {
+  source = "./modules/ansible-inventory-creation"
+  bastion_public_ip = module.instances.bastion_public_ip
+  private_ips  = module.instances.private_instance_private_ips
+}

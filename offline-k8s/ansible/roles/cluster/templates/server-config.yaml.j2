@@ -1,7 +1,14 @@
-token: "{{ rke2_token }}"
+write-kubeconfig-mode: "0644"
 tls-san:
   - "{{ ansible_host }}"
-node-name: {{ inventory_hostname }}
+  - "{{ ansible_default_ipv4.address }}"
+cluster-cidr: "10.42.0.0/16"
+service-cidr: "10.43.0.0/16"
+cni: "canal"
+disable-cloud-controller: true
+node-name: "{{ inventory_hostname }}"
+{% if rke2_token is defined %}
+token: "{{ rke2_token }}"
+{% endif %}
 node-taint:
   - "CriticalAddonsOnly=true:NoExecute"
-cni: flannel
