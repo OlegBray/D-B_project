@@ -8,4 +8,4 @@ mkdir -p ~/offline-k8s/images
 cd ~/offline-k8s/images
 docker pull registry:2 && docker save registry:2 -o registry.tar
 
-
+docker pull nginx:latest && docker save nginx:latest -o nginx.tar

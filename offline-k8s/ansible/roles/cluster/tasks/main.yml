@@ -276,3 +276,54 @@
     dest: ~/.kube/config
     flat: yes
   when: inventory_hostname in groups['master']
+
+# === STEP 21: Move nginx to local registry on each node ===
+- name: Copy nginx image tarball to all nodes
+  become: true
+  copy:
+    src: "{{ playbook_dir }}/../images/nginx.tar"
+    dest: /tmp/nginx.tar
+    mode: '0644'
+
+- name: Load nginx image from tarball
+  become: true
+  command: docker load -i /tmp/nginx.tar
+  register: nginx_load_result
+
+- name: Display nginx image load result
+  debug:
+    var: nginx_load_result.stdout_lines
+
+- name: Tag nginx image for local registry
+  become: true
+  command: docker tag nginx:latest localhost:5000/nginx:latest
+  register: nginx_tag_result
+
+- name: Push nginx image to local registry
+  become: true
+  command: docker push localhost:5000/nginx:latest
+  register: nginx_push_result
+
+- name: Display nginx push result
+  debug:
+    var: nginx_push_result.stdout_lines
+
+- name: Verify nginx image is available in local registry
+  become: true
+  uri:
+    url: "http://localhost:5000/v2/nginx/tags/list"
+    method: GET
+    return_content: yes
+  register: registry_check
+  failed_when: false
+
+- name: Display registry verification result
+  debug:
+    msg: "Registry response: {{ registry_check.content }}"
+  when: registry_check.status == 200
+
+- name: Clean up nginx tarball
+  become: true
+  file:
+    path: /tmp/nginx.tar
+    state: absent
