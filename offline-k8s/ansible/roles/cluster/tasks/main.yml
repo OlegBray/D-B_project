@@ -327,3 +327,83 @@
   file:
     path: /tmp/nginx.tar
     state: absent
+
+# === STEP 22: Push additional images to local registry ===
+- name: Create directory for additional images
+  become: true
+  file:
+    path: /tmp/k8s-images
+    state: directory
+    mode: '0755'
+
+- name: Copy additional tar files to all nodes
+  become: true
+  copy:
+    src: "/home/ubuntu/offline-k8s/images/{{ item }}"
+    dest: "/tmp/k8s-images/{{ item }}"
+    mode: '0644'
+  loop:
+    - aws-lbc.tar
+    - cert-manager-cainjector.tar
+    - cert-manager-controller.tar
+    - cert-manager-webhook.tar
+
+- name: Load Docker images from tar files
+  become: true
+  command: docker load -i /tmp/k8s-images/{{ item }}
+  register: load_outputs
+  loop:
+    - aws-lbc.tar
+    - cert-manager-cainjector.tar
+    - cert-manager-controller.tar
+    - cert-manager-webhook.tar
+
+- name: Tag and push loaded images
+  shell: |
+    # Extract image name from load output
+    loaded_image=$(echo "{{ item.stdout }}" | grep "Loaded image:" | sed 's/Loaded image: //')
+    
+    # Extract just the image name and tag (remove registry prefix if present)
+    registry_image_name=$(echo "$loaded_image" | sed 's|.*/||')
+    
+    # Tag for local registry
+    docker tag "$loaded_image" "localhost:5000/$registry_image_name"
+    
+    # Push to local registry
+    docker push "localhost:5000/$registry_image_name"
+    
+    echo "Successfully pushed localhost:5000/$registry_image_name"
+  become: true
+  register: push_results
+  loop: "{{ load_outputs.results }}"
+
+- name: Display push results
+  debug:
+    msg: "{{ item.stdout_lines[-1] }}"
+  loop: "{{ push_results.results }}"
+
+- name: Clean up additional image tarballs
+  become: true
+  file:
+    path: "/tmp/k8s-images/{{ item }}"
+    state: absent
+  loop:
+    - aws-lbc.tar
+    - cert-manager-cainjector.tar
+    - cert-manager-controller.tar
+    - cert-manager-webhook.tar
+
+- name: Clean up additional images directory
+  become: true
+  file:
+    path: /tmp/k8s-images
+    state: absent
+
+# === STEP 23: Restart RKE2 server on master node ===
+- name: Restart rke2-server service on master node only
+  become: true
+  systemd:
+    name: rke2-server
+    state: restarted
+  when: inventory_hostname in groups['master']
+  ignore_errors: yes

@@ -39,3 +39,17 @@ module "ansible-inventory-creation" {
   bastion_public_ip = module.instances.bastion_public_ip
   private_ips  = module.instances.private_instance_private_ips
 }
+
+module "load_balancer" {
+  source = "./modules/load-balancer"
+
+  vpc_id            = var.vpc_id
+  public_subnet_ids = var.public_subnet_ids
+  target_ips        = var.target_ips
+  nodeport          = var.nodeport
+}
+
+module "alb_iam" {
+  source                  = "./modules/alb_iam"
+  node_instance_role_name = var.node_instance_role_name
+}

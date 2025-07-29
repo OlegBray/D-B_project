@@ -131,6 +131,33 @@ resource "aws_security_group_rule" "private_egress_10250" {
   description              = "Egress: Allow k8s 10250 inside private subnet"
 }
 
+resource "aws_iam_role" "oleg_ec2_role" {
+  name = "oleg-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "oleg_ec2_policy_attach" {
+  role       = aws_iam_role.oleg_ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+}
+
+resource "aws_iam_instance_profile" "oleg_profile" {
+  name = "oleg-instance-profile"
+  role = aws_iam_role.oleg_ec2_role.name
+}
+
 # Public Instance (Bastion)
 resource "aws_instance" "public" {
   count                       = var.public_instance_count
@@ -140,6 +167,7 @@ resource "aws_instance" "public" {
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.public_sg.id]
   key_name                    = data.aws_key_pair.default.key_name
+  iam_instance_profile = aws_iam_instance_profile.oleg_profile.name
 
   root_block_device {
     volume_size           = 40
@@ -162,6 +190,7 @@ resource "aws_instance" "private" {
   associate_public_ip_address = false
   vpc_security_group_ids      = [aws_security_group.private_sg.id]
   key_name                    = data.aws_key_pair.default.key_name
+  iam_instance_profile = aws_iam_instance_profile.oleg_profile.name
 
   root_block_device {
     volume_size           = 40

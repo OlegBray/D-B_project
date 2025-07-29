@@ -43,3 +43,27 @@ variable "key_name" {
   default     = "oleg-key"
 }
 
+variable "node_instance_role_name" {
+  description = "IAM role name attached to your RKE2 EC2 instances"
+  type        = string
+}
+
+variable "public_subnet_ids" {
+  description = "List of public subnet IDs for the ALB"
+  type        = list(string)
+}
+
+variable "vpc_id" {
+  description = "VPC ID for the cluster and ALB"
+  type        = string
+}
+
+variable "nodeport" {
+  description = "NodePort that your Kubernetes Service exposes"
+  type        = number
+}
+
+variable "target_ips" {
+  description = "Map of identifier→IP of each RKE2 node (in private subnets)"
+  type        = map(string)
+}

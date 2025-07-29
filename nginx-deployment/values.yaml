@@ -26,24 +26,34 @@ service:
   port: 80
   targetPort: 80
 
-# Ingress configuration for RKE2 nginx controller
+# Updated Ingress configuration for external access
 ingress:
   enabled: true
   className: "nginx"  # RKE2 nginx ingress class
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    # Add any other RKE2 specific annotations here
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # Disabled for testing
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"  # Disabled for testing
+    # External access annotations
+    kubernetes.io/ingress.class: "nginx"
+    # If you have external-dns configured, uncomment the next line:
+    # external-dns.alpha.kubernetes.io/hostname: "nginx.yourdomain.com"
   hosts:
-    - host: nginx.example.com
+    - host: nginx.yourdomain.com  # Replace with your actual external domain
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: nginx-tls
-      hosts:
-        - nginx.example.com
+    # Optional: Add wildcard or IP-based access for testing
+    - host: ""  # This allows access via IP
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []  # Disabled TLS for initial testing
+  # Uncomment and configure TLS after basic connectivity works:
+  # tls:
+  #   - secretName: nginx-tls
+  #     hosts:
+  #       - nginx.yourdomain.com
 
 resources:
   limits:
@@ -70,7 +80,7 @@ nginx:
   config: |
     server {
         listen 80;
-        server_name localhost;
+        server_name _;  # Accept any hostname
         
         location / {
             root /usr/share/nginx/html;
