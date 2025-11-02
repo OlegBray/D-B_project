@@ -67,7 +67,7 @@ AWS VPC
      - Deploy **Helm** and install **NGINX**.  
 
 5. **Port Forwarding (Optional)**  
-   - From your local machine, use port forwarding to access NGINX running in the isolated cluster.
+   - From RKE2 cluster, use port forwarding to the NGINX service toward the bastion and from the bastion to your localhost.
 
 ---
 
